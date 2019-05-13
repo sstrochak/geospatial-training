@@ -19,7 +19,7 @@ output:
 ![](www/images/urban-institute-logo.png)
 
 
-## Geospatial analysis in R
+## Geospatial data in R
 
 Geospatial analysis is one of the fastest growing areas of R. In particular. special features provide a tidy way to analyze and visualize spatial data. 
 
@@ -125,7 +125,7 @@ ggplot() +
   geom_sf(banks_sf, mapping = aes(), alpha = .2, fill = "#1696d2") +
   theme_urbn_map() +
   coord_sf(datum = NA) +
-  labs(title = "FDIC Insured Bank Branches in the Washington, DC MSA")
+  labs(title = "FDIC Insured Bank Branches in the Washignton, DC MSA")
 
 ```
 
