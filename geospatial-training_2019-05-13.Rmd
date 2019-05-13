@@ -22,14 +22,14 @@ There are several R packages that make it even more convenient to map in R:
 
 * `sf`
 * `tigris`
-* `ggplot2`
 * `urbnmapr`
+* `ggplot2`
 
 ### Some great resources:
 
-* Robin Lovelace, Geocomputaion in R
-* ALL of the vignettes for the `sf` package
-* The Urban Institute mapping guide (major updates coming soon!)
+* Robin Lovelace, [Geocomputation with R](https://geocompr.robinlovelace.net/index.html)
+* All of the vignettes for the [`sf` package](https://cran.r-project.org/web/packages/sf/sf.pdf)
+* The Urban Institute [mapping guide](https://ui-research.github.io/r-at-urban/mapping.html) (major updates coming soon!)
 
 ## Reading in data
 
@@ -45,15 +45,25 @@ library(tigris)
 
 ### Reading in shapefiles
 
+`st_read` allows you to read in shapefiles as an `sf` object. Once read in, you can reproject. When mapping and doing geospatial operations, it is important that all features are in the same projection.
+
 ```{r read-sf}
 
-# msa_boundary <- st_read("get-dat-shapefile")
+list.files("shapefiles")
+
+msa_boundary <- st_read(dsn = "shapefiles",
+                        layer = "2015 MSA Boundary")
+
+msa_boundary <- st_transform(msa_boundary, crs = 4326)
+
+
+st_geometry(msa_boundary)
 
 ```
 
 ### Converting dataframes to `sf`
 
-If you have a dataframe that contains latitude and longitude, you can easily convert your data to a `sf` ponit dataframe.
+If you have a dataframe that contains latitude and longitude, you can easily convert your data to a `sf` ponit dataframe. It is important to know what coordinate reference system the coordinates are based on, so you can properly assign the CRS or projection. Note that `st_set_crs` is used to assign a projection; `st_transform` is used to alter a projection that already exists.
 
 ```{r read-csv, message=FALSE}
 
@@ -75,7 +85,8 @@ banks_sf <- banks %>%
 
 options(tigris_class = "sf")
 
-tracts <- tigris::tracts(state = "11", cb = TRUE)
+dc_tracts <- tracts(state = "DC", cb = TRUE, year = 2010) %>% 
+  st_transform(crs = 4326)
 
 ```
 
@@ -92,20 +103,23 @@ dc <- get_urbn_map(map = "states", sf = TRUE) %>%
 ## Mapping
 
 `geom_sf` from `ggplot2` allows you to map point, line, polygon, and multipolygon data. 
-The syntax follow that of other `geom_*` functions- provide a data set and a set of aesthetics. If you are using an `sf` object with the coordinates saved in a column called `geometry`, you do not need to indicate that in the `aes()` call- this is the default.
+The syntax follows that of other `geom_*` functions- provide a data set and a set of aesthetics. If you are using an `sf` object with the coordinates saved in a column called `geometry`, you do not need to indicate that in the `aes()` call- this is the default.
 
 You can layer geoms on top of each other; the they wil appear bottom to top.
 
 ```{r ggplot}
 
 ggplot() +
-  # geom_sf(msa_boundary, mapping = aes(), 
-  #         fill = "grey") +
-  geom_sf(banks_sf, mapping = aes()) +
+  geom_sf(msa_boundary, mapping = aes(), 
+          fill = "grey") +
+  geom_sf(banks_sf, mapping = aes(), alpha = .2, fill = "#1696d2") +
   theme_urbn_map() +
-  coord_sf(datum = NA)
+  coord_sf(datum = NA) +
+  labs(title = "FDIC Insured Bank Branches in the Washignton, DC MSA")
 
 ```
+
+For examples of choropleth maps, see the [`urbnmapr` vignette.](https://github.com/UrbanInstitute/urbnmapr)
 
 ## Clipping
 
@@ -126,7 +140,7 @@ ggplot() +
 ```
 
 
-`st_intersection` will provide an exact clip- closer to the "Clip" function from ArcGIS and other GIS software programs.
+`st_intersection` will provide an exact clip.
 
 ```{r intersection, warning=FALSE, message=FALSE}
 
@@ -144,10 +158,47 @@ ggplot() +
 
 ## Spatial joins
 
-Instead of joining on an inditifier variables, you can join datasets on geometry.
+Instead of joining on an identifier variable, you can join datasets on geometry.
 
-Say, for instance, you want to figure out which census tracts in DC have the most FDIC-insured bank branches. The function `st_join` has many different options to equate geometries. The `sf` cheatsheet **ADD LINK** is a great resource for remembering and determining which function to use.
+Say, for instance, you want to figure out which census tracts in DC have the most FDIC-insured bank branches. The function `st_join` has many different options to equate geometries. The [`sf` cheatsheet](https://github.com/rstudio/cheatsheets/raw/master/sf.pdf) is a great resource for remembering and determining which function to use.
+
+```{r spatial-join, message=FALSE}
+
+banks_tracts <- st_join(dc_tracts, banks_int, join = st_intersects)
+
+banks_tracts %>% 
+  group_by(GEO_ID) %>% 
+  count() %>% 
+  ggplot() +
+  geom_sf(mapping = aes(fill = n)) +
+  scale_fill_gradientn() +
+  theme_urbn_map() +
+  coord_sf(datum = NA) +
+  labs(fill = "Number of banks per census tract")
+
+
+```
 
 ## Buffers
 
-The `units` package is helpful for creating buffers withing having to reproject your data into the units you need for the buffer.
+The function `st_buffer` can be used to create buffers around geometries. It is important to reproject your data out of long/lat to calculate accurate buffers.
+
+Here, I project the bank coordinates into Marlyand State plane in feet in order to calculate a half mile buffer. `library(units)` is helpful for setting and converting between units.
+
+```{r buffer, message=FALSE}
+
+banks_proj <- st_transform(banks_int, crs = 2248)
+
+banks_buffer <- st_buffer(banks_proj, units::set_units(.5, mi) %>% units::set_units(ft)) %>% 
+  st_transform(crs = 4326)
+
+ggplot() +
+  geom_sf(dc, mapping = aes(), 
+          fill = "grey") +
+  geom_sf(banks_buffer, mapping = aes(),
+          fill = "#1696d2", alpha = .3, color = NA) +
+  theme_urbn_map() +
+  coord_sf(datum = NA)
+  
+
+```
