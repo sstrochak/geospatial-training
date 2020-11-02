@@ -1,7 +1,7 @@
 ---
 title: ""
-author: "Sarah Strochak"
-date: "May 13, 2019"
+author: "Sarah Strochak & Ajjit Narayanan"
+date: "Nov 2, 2020"
 output:
   html_document:
     number_sections: false
@@ -18,30 +18,27 @@ output:
 
 ![](www/images/urban-institute-logo.png)
 
+# Mapping and Geospatial analysis in R
 
-## Geospatial analysis in R
+## Introduction
 
-Geospatial analysis is one of the fastest growing areas of R. In particular. special features provide a tidy way to analyze and visualize spatial data. 
-
+Geospatial analysis is one of the fastest growing areas of R. In particular, the `sf` package provides a tidy and intuitive way to analyze and visualize spatial data.
 
 ### Why map in R?
 
-Reproducabilty is key. Not only does mapping in R allow you to easily make many iterations of the same map, writing code provides a roadmap for others (and future you!) to figure out what was done.
+1)  *Reproducibility*: Creating maps with R code means that other collaborators can easily check and replicate your work.
+2)  *Iteration*: With point and click software like ArcGIS, making 50 maps would be 50 times the work/time. But mapping in R, allows you to easily make many iterations of the same map with a few alterations.
+3)  *Easy Updates/Changes*: Writing code provides a roadmap for others (and future you!) to update the map as needed.
+4)  *Expansive package ecosystem*: There are several R packages that make it very convenient to get spatial data, create static and interactive maps, and perform spatial analyses. Some of these packages include:
 
-There are several R packages that make it even more convenient to map in R:
+-   `sf`: For managing and analyzing spatial dataframes
+-   `tigris`: For downloading in Census geographies
+-   `ggplot2`: For making publication ready static maps
+-   `urbnmapr`: For automatically adding Urban styling to static maps
+-   `mapview`: For making exploratory interactive maps
 
-* `sf`
-* `tigris`
-* `urbnmapr`
-* `ggplot2`
 
-### Some great resources:
-
-* Robin Lovelace, [Geocomputation with R](https://geocompr.robinlovelace.net/index.html)
-* All of the vignettes for the [`sf` package](https://cran.r-project.org/web/packages/sf/sf.pdf)
-* The Urban Institute [mapping guide](https://ui-research.github.io/r-at-urban/mapping.html) (major updates coming soon!)
-
-## Reading in data
+## Reading in spatial data
 
 ```{r libs, message=FALSE, warning=FALSE}
 
@@ -50,12 +47,13 @@ library(sf)
 library(urbnthemes)
 library(urbnmapr)
 library(tigris)
+library(mapview)
 
 ```
 
-### Reading in shapefiles
+### Reading in shapefiles/geojsons
 
-`st_read` allows you to read in shapefiles as an `sf` object. Once read in, you can reproject. When mapping and doing geospatial operations, it is important that all features are in the same projection.
+The `st_read()` function allows you to read in any spatial file format, such as shapefiles (`.shp`) or GeoJSONs (`.geojson`), as an `sf` dataframe. Once read in, you can reproject the coordinate reference system for your data. When mapping and performing geospatial operations, it is important that all data are in the same projection.
 
 ```{r read-sf}
 
@@ -71,36 +69,39 @@ st_geometry(msa_boundary)
 
 ```
 
-### Converting dataframes to `sf`
+### Reading in CSV's
 
-If you have a dataframe that contains latitude and longitude, you can easily convert your data to a `sf` ponit dataframe. It is important to know what coordinate reference system the coordinates are based on, so you can properly assign the CRS or projection. Note that `st_set_crs` is used to assign a projection; `st_transform` is used to alter a projection that already exists.
+If you have a CSV or other dataset that contains latitudes and longitudes, you can easily convert your data to a `sf` point dataframe. It is important to know what coordinate reference system the coordinates are based on, so you can properly assign the CRS or projection. Note that `st_set_crs` is used to assign a projection; `st_transform` is used to alter a projection that already exists.
 
-```{r read-csv, message=FALSE}
+```{r read-csv, message=FALSE, warning = FALSE}
 
 banks <- read_csv("data/fdic-sod-dc_2017.csv")
 
 banks_sf <- banks %>% 
-  filter(!is.na(sims_longitude), !is.na(sims_latitude)) %>% 
+  # Filter out 2 rows without lat or lons
+  filter(!is.na(sims_longitude) | !is.na(sims_latitude)) %>% 
+  # Convert regular dataframe to an sf dataframe. Need to specify lon, lat (in that order!)
   st_as_sf(coords = c("sims_longitude", "sims_latitude")) %>% 
   st_set_crs(4326)
 
 ```
 
+### Reading in Census boundaries
 
-### Packages with data
-
-`tigris` allows you to pull Census boundaries- states, tracts, CBSAs- even roads and military bases.
+There are many packages that make it easy to read in Census boundaries. The `tigris` package for example allows you to pull states, tracts, CBSAs, and even roads and military bases. For a full list of supported Census geographies see [here](https://github.com/walkerke/tigris).
 
 ```{r tigris, results='hide'}
 
 options(tigris_class = "sf")
 
-dc_tracts <- tracts(state = "DC", cb = TRUE, year = 2010) %>% 
+dc_tracts <- tracts(state = "DC",
+                    cb = TRUE,
+                    year = 2010) %>% 
   st_transform(crs = 4326)
 
 ```
 
-`urbnmapr` (sf support coming very, very soon) has states and counties with Alaska and Hawaii included, for making state and county maps- or can be used to pull data for individual states.
+The `urbnmapr` package contains geographic data that can be used to easily make state and county level maps, with AL and HI displayed as insets. This packages also supports US territories.
 
 ```{r urbnmapr}
 
@@ -110,45 +111,48 @@ dc <- get_urbn_map(map = "states", sf = TRUE) %>%
 
 ```
 
-## Mapping
+## Static Mapping
 
-`geom_sf` from `ggplot2` allows you to map point, line, polygon, and multipolygon data. 
-The syntax follows that of other `geom_*` functions- provide a data set and a set of aesthetics. If you are using an `sf` object with the coordinates saved in a column called `geometry`, you do not need to indicate that in the `aes()` call- this is the default.
+`geom_sf` from `ggplot2` allows you to map point, line, polygon, and multipolygon `sf` dataframes. The syntax follows that of other `geom_*` functions- provide a data set and a set of aesthetics. If you are using an `sf` dataframe (which contains the coordinates saved in a column called `geometry`), then you are not required to provide any aesthetics. But you can if you say want to color in states by a particular variable.
 
-You can layer geoms on top of each other; the they wil appear bottom to top.
+You can also layer geoms on top of each other; they will appear from bottom to top.
 
 ```{r ggplot}
 
 ggplot() +
-  geom_sf(msa_boundary, mapping = aes(), 
-          fill = "grey") +
-  geom_sf(banks_sf, mapping = aes(), alpha = .2, fill = "#1696d2") +
+  geom_sf(data = msa_boundary, 
+          mapping = aes()) +
+  geom_sf(data = banks_sf,
+          mapping = aes(), 
+          alpha = .2, 
+          color = palette_urbn_cyan[5],
+          stroke = FALSE) +
   theme_urbn_map() +
-  coord_sf(datum = NA) +
-  labs(title = "FDIC Insured Bank Branches in the Washington, DC MSA")
+  labs(title = "FDIC Insured Bank Branches in the Washington DC MSA")
 
 ```
 
-For examples of choropleth maps, see the [`urbnmapr` vignette.](https://github.com/UrbanInstitute/urbnmapr)
+For examples of choropleth maps, see the [`urbnmapr` vignette.](https://github.com/UrbanInstitute/urbnmapr). For examples of other types of maps, see the Urban Institute [mapping guide](https://ui-research.github.io/r-at-urban/mapping.html).
 
 ## Clipping
 
-`st_crop` will crop your data to the bouding box of another spatial data set.
+`st_crop` will crop your data to the bounding box of another spatial data set.
 
 ```{r crop, warning=FALSE, message=FALSE}
 
 banks_crop <- st_crop(banks_sf, dc)
 
 ggplot() +
-  geom_sf(dc, mapping = aes(), 
+  geom_sf(data = dc, 
+          mapping = aes(), 
           fill = "grey") +
-  geom_sf(banks_crop, mapping = aes()) +
-  theme_urbn_map() +
-  coord_sf(datum = NA)
+  geom_sf(data = banks_crop, 
+          mapping = aes(),
+          color = palette_urbn_cyan[5]) +
+  theme_urbn_map() 
 
 
 ```
-
 
 `st_intersection` will provide an exact clip.
 
@@ -157,33 +161,51 @@ ggplot() +
 banks_int <- st_intersection(banks_sf, dc)
 
 ggplot() +
-  geom_sf(dc, mapping = aes(), 
+  geom_sf(data = dc,
+          mapping = aes(), 
           fill = "grey") +
-  geom_sf(banks_int, mapping = aes()) +
-  theme_urbn_map() +
-  coord_sf(datum = NA)
+  geom_sf(data = banks_int, 
+          mapping = aes(),
+          color = palette_urbn_cyan[5]) +
+  theme_urbn_map()
 
 
 ```
 
 ## Spatial joins
 
-Instead of joining on an identifier variable, you can join datasets on geometry.
+Say, for instance, you want to map out census tracts in DC, colored by the number of FDIC-insured bank branches they have. Doing this would involve:
 
-Say, for instance, you want to figure out which census tracts in DC have the most FDIC-insured bank branches. The function `st_join` has many different options to equate geometries. The [`sf` cheatsheet](https://github.com/rstudio/cheatsheets/raw/master/sf.pdf) is a great resource for remembering and determining which function to use.
+1)  Performing a point to polygon spatial join to figure out the Census tract that each bank falls into
+2)  Counting the number of banks by Census tracts
+3)  Making a map
+
+The function `st_join` has many different options to spatially join geometries. The [`sf` cheatsheet](https://github.com/rstudio/cheatsheets/raw/master/sf.pdf) is a great resource for remembering and determining which function to use. When using `st_join`, the the geometry of the first object is retained, and the geometry of the second object is lost.
 
 ```{r spatial-join, message=FALSE}
 
-banks_tracts <- st_join(dc_tracts, banks_int, join = st_intersects)
+# Perform spatial join between banks (point) and tracts (polygons)
+banks_with_tract_appended <- st_join(banks_int, dc_tracts, join = st_intersects)
 
-banks_tracts %>% 
-  group_by(GEO_ID) %>% 
-  count() %>% 
+# Count number of banks by tract
+bank_count_by_tract = banks_with_tract_appended %>% 
+  # GEO_ID = unique id for a tract
+  count(GEO_ID, 
+        name = "num_banks") %>% 
+  st_drop_geometry()
+
+# Append count of number of banks to dc_tracts dataframe
+dc_tracts = dc_tracts %>% 
+  left_join(bank_count_by_tract, 
+            by = "GEO_ID") %>% 
+  mutate(num_banks = ifelse(is.na(num_banks), 0, num_banks))
+
+# Create map of banks by Census tract
+ dc_tracts %>% 
   ggplot() +
-  geom_sf(mapping = aes(fill = n)) +
+  geom_sf(mapping = aes(fill = num_banks)) +
   scale_fill_gradientn() +
   theme_urbn_map() +
-  coord_sf(datum = NA) +
   labs(fill = "Number of banks per census tract")
 
 
@@ -191,15 +213,17 @@ banks_tracts %>%
 
 ## Buffers
 
-The function `st_buffer` can be used to create buffers around geometries. It is important to reproject your data out of long/lat to calculate accurate buffers.
+The function `st_buffer` can be used to create buffers around geometries. It is important to reproject your data out of long/lat based projectsion to calculate accurate buffers.
 
 Here, I project the bank coordinates into Marlyand State plane in feet in order to calculate a half mile buffer. `library(units)` is helpful for setting and converting between units.
 
 ```{r buffer, message=FALSE}
 
-banks_proj <- st_transform(banks_int, crs = 2248)
+banks_proj <- banks_int %>% 
+  st_transform(crs = 2248)
 
-banks_buffer <- st_buffer(banks_proj, units::set_units(.5, mi) %>% units::set_units(ft)) %>% 
+banks_buffer <- banks_proj %>% 
+  st_buffer(units::set_units(.5, mi) %>% units::set_units(ft)) %>% 
   st_transform(crs = 4326)
 
 ggplot() +
@@ -207,9 +231,22 @@ ggplot() +
           fill = "grey") +
   geom_sf(banks_buffer, mapping = aes(),
           fill = "#1696d2", alpha = .3, color = NA) +
-  theme_urbn_map() +
-  coord_sf(datum = NA)
+  theme_urbn_map() 
   
 
 ```
 
+
+## Interactive Mapping
+
+The `mapview` package makes it very easy to create interactive maps with `sf` dataframes. All you have to do is run `mapview(your_sf_object)`. You can layer multiple `sf` dataframes on top of each other with `mapview(sf1) + mapview(sf2)`
+
+```{r mapview, message = FALSE}
+
+mapview(dc_tracts)
+
+mapview(dc_tracts) + mapview(banks_int, col.regions = palette_urbn_green[6])
+
+```
+
+For more information on the options available on the `mapview` libary, see Day 4 of our [Mapping 101 training](https://ui-research.github.io/urbn101-mapping/).
