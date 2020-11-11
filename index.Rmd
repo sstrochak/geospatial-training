@@ -1,17 +1,19 @@
 ---
-title: ""
+title: ''
 author: "Sarah Strochak & Ajjit Narayanan"
 date: "Nov 2, 2020"
 output:
   html_document:
-    number_sections: false
-    self_contained: TRUE
+    number_sections: no
+    self_contained: yes
     code_folding: show
-    toc: TRUE
-    toc_float: TRUE
+    toc: yes
+    toc_float: yes
     css: www/web_report.css
     editor_options:
       chunk_output_type: console
+  pdf_document:
+    toc: yes
 ---
 
 <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato" />
@@ -59,13 +61,11 @@ The `st_read()` function allows you to read in any spatial file format, such as 
 
 list.files("shapefiles")
 
-msa_boundary <- st_read(dsn = "shapefiles",
-                        layer = "2015 MSA Boundary")
+msa_boundary <- st_read(dsn = "shapefiles/2015 MSA Boundary.shp")
 
 msa_boundary <- st_transform(msa_boundary, crs = 4326)
 
 
-st_geometry(msa_boundary)
 
 ```
 
@@ -92,7 +92,7 @@ There are many packages that make it easy to read in Census boundaries. The `tig
 
 ```{r tigris, results='hide'}
 
-options(tigris_class = "sf")
+options(tigris_class = "sf", use_tigris_cache = FALSE)
 
 dc_tracts <- tracts(state = "DC",
                     cb = TRUE,
@@ -101,7 +101,7 @@ dc_tracts <- tracts(state = "DC",
 
 ```
 
-The `urbnmapr` package contains geographic data that can be used to easily make state and county level maps, with AL and HI displayed as insets. This packages also supports US territories.
+The `urbnmapr` package contains geographic data that can be used to easily make state and county level maps, with AL and HI displayed as insets. This package also supports US territories.
 
 ```{r urbnmapr}
 
