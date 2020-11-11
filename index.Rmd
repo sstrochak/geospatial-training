@@ -40,6 +40,15 @@ Geospatial analysis is one of the fastest growing areas of R. In particular, the
 -   `mapview`: For making exploratory interactive maps
 
 
+## Some great resources
+
+* The Urban Institute [mapping training series](https://ui-research.github.io/urbn101-mapping/)
+* The Urban Institute [mapping guide](https://ui-research.github.io/r-at-urban/mapping.html) (major updates coming soon!)
+* All of the vignettes for the [`sf` package](https://cran.r-project.org/web/packages/sf/sf.pdf)
+* Robin Lovelace, [Geocomputation with R](https://geocompr.robinlovelace.net/index.html)
+
+
+
 ## Reading in spatial data
 
 ```{r libs, message=FALSE, warning=FALSE}
